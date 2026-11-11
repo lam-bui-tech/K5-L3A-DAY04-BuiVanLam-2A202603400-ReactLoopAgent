@@ -1,6 +1,7 @@
 """Bốn provider cùng một interface. Không chứa agent loop."""
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 
@@ -13,15 +14,27 @@ CONFIG = {
 
 
 def post_json(url, headers, payload):
-    req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={'Content-Type': 'application/json', **headers})
-    try:
-        with urllib.request.urlopen(req, timeout=60) as response:
-            return json.load(response)
-    except urllib.error.HTTPError as exc:
-        # Do not print response bodies: they may contain account or request data.
-        raise RuntimeError(f'Provider trả HTTP {exc.code}; kiểm tra model, key và quota.') from exc
-    except urllib.error.URLError as exc:
-        raise RuntimeError(f'Không kết nối được provider: {exc.reason}') from exc
+    max_retries = 5
+    for attempt in range(max_retries):
+        time.sleep(2.5)  # Tránh vượt quá 15 RPM của Gemini free tier
+        req = urllib.request.Request(url, data=json.dumps(payload).encode(), headers={'Content-Type': 'application/json', **headers})
+        try:
+            with urllib.request.urlopen(req, timeout=60) as response:
+                return json.load(response)
+        except (urllib.error.HTTPError, TimeoutError, urllib.error.URLError, OSError) as exc:
+            code = getattr(exc, 'code', None)
+            if attempt < max_retries - 1:
+                if code == 429:
+                    time.sleep(12 * (attempt + 1))
+                else:
+                    time.sleep(5 * (attempt + 1))
+                continue
+            if isinstance(exc, urllib.error.HTTPError):
+                raise RuntimeError(f'Provider trả HTTP {exc.code}; kiểm tra model, key và quota.') from exc
+            elif isinstance(exc, urllib.error.URLError):
+                raise RuntimeError(f'Không kết nối được provider: {exc.reason}') from exc
+            else:
+                raise RuntimeError(f'Lỗi kết nối provider: {exc}') from exc
 
 
 class Provider:
