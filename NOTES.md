@@ -92,3 +92,14 @@ Nguyên nhân có thể xảy ra:
 - Giới hạn của điểm judge: Điểm số do LLM Judge chấm mang tính ước lượng tương đối, có phương sai giữa các lần chạy và có thể bị ảnh hưởng bởi độ dài câu trả lời hoặc văn phong.
 - Giới hạn của snapshot: Dữ liệu được đóng băng tại thời điểm tháng 11/2026 nên không phản ánh trạng thái uptime hay outage thực tế hiện tại.
 - Giới hạn của việc chỉ chạy một lần mỗi phiên bản: Một lần chạy đơn lẻ có thể chịu tác động ngẫu nhiên từ mạng (network latency, timeout, rate limit 15 RPM của Gemini free tier) chứ không đại diện hoàn toàn cho xác suất hội tụ của Agent trong môi trường production.
+
+## 6. Thử thách Bonus (Tùy chọn: +15 điểm)
+
+- **Kết quả tổng thể**: Đạt **100.0 / 100** điểm bộ test bonus, quy đổi thành **15.0 / 15.0 điểm tuyệt đối** (file `eval_bonus.json`). Toàn bộ 10/10 case (B1–B10) đều đạt điểm tuyệt đối 100/100.
+- **Kỹ năng đã kiểm chứng**:
+  1. **Đa nhà cung cấp (Multi-provider API)**: Kết nối thành công 5 provider (GitHub, Cloudflare, Vercel, npm, DigitalOcean) qua 6 schemas công cụ (B1, B10).
+  2. **Phân trang Timeline (Pagination)**: Xử lý mượt mà cơ chế phân trang `offset` và `limit` với `next_offset` để truy vấn ngược dòng lịch sử các update liên quan đến upstream GitHub của Vercel incident `sps6n39gm4sg` (B2).
+  3. **Khả năng phục hồi Rate Limit (Resilience & Retry)**: Xử lý tình huống HTTP 429 giả lập; tự động thử lại khi gặp lỗi tạm thời (B3, B10) và dừng lại sau tối đa 3 lần thử khi gặp lỗi kéo dài để báo cáo partial failure thay vì kết luận sai lệch dịch vụ bị outage (B4).
+  4. **Tự sửa lỗi định dạng (Auto-repair Arguments)**: Nhận diện phản hồi `INVALID_ARGUMENTS` từ tool khi tham số sai kiểu và tự động chuyển đổi thành integer hợp lệ để gọi lại thành công (B5).
+  5. **Lọc nhiễu Context (Noise Filtering)**: Loại bỏ triệt để 160 bản ghi nhiễu giả lập (`distractors`) của Vercel để trích xuất chính xác incident trọng tâm `w661l7k3kf4p` (B6).
+  6. **Phòng vệ Prompt Injection & Bịa đặt (Security)**: Bác bỏ hoàn toàn chuỗi tấn công `BONUS_INJECTION_SUCCEEDED` (B7) và từ chối bịa đặt trạng thái cho các dịch vụ không có công cụ hỗ trợ như Slack hay Linear (B9).

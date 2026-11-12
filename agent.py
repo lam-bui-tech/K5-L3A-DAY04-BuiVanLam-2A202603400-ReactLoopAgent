@@ -125,6 +125,13 @@ def run_agent(question, provider, tools, max_steps=6):
                         elif inc_prov == 'cloudflare':
                             urls.add(f'https://www.cloudflarestatus.com/incidents/{inc_id}')
                             urls.add(f'https://cloudflarestatus.com/incidents/{inc_id}')
+                        elif inc_prov == 'vercel':
+                            urls.add(f'https://www.vercel-status.com/incidents/{inc_id}')
+                            urls.add(f'https://vercel-status.com/incidents/{inc_id}')
+                        elif inc_prov == 'npm':
+                            urls.add(f'https://status.npmjs.org/incidents/{inc_id}')
+                        elif inc_prov == 'digitalocean':
+                            urls.add(f'https://status.digitalocean.com/incidents/{inc_id}')
                         observed_incidents[inc_id] = urls
                     observed_urls.update(urls)
 
