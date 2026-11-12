@@ -39,6 +39,7 @@ def run_agent(question, provider, tools, max_steps=6):
     trace = []
     usage = []
     observed_urls = set()
+    observed_incidents = {}
     last_answer = ''
 
     # 3. Vòng lặp ReAct tối đa max_steps lần gọi model
@@ -112,18 +113,20 @@ def run_agent(question, provider, tools, max_steps=6):
 
                 # Thu thập URL incident nếu tool get_incident_details thành công
                 if isinstance(tool_result, dict) and tool_result.get('ok'):
+                    urls = set()
                     if tool_result.get('url'):
-                        observed_urls.add(tool_result['url'])
+                        urls.add(tool_result['url'])
                     inc_id = tool_result.get('id')
                     inc_prov = tool_result.get('provider')
                     if inc_id:
-                        observed_urls.add(inc_id)
                         if inc_prov == 'github':
-                            observed_urls.add(f'https://www.githubstatus.com/incidents/{inc_id}')
-                            observed_urls.add(f'https://githubstatus.com/incidents/{inc_id}')
+                            urls.add(f'https://www.githubstatus.com/incidents/{inc_id}')
+                            urls.add(f'https://githubstatus.com/incidents/{inc_id}')
                         elif inc_prov == 'cloudflare':
-                            observed_urls.add(f'https://www.cloudflarestatus.com/incidents/{inc_id}')
-                            observed_urls.add(f'https://cloudflarestatus.com/incidents/{inc_id}')
+                            urls.add(f'https://www.cloudflarestatus.com/incidents/{inc_id}')
+                            urls.add(f'https://cloudflarestatus.com/incidents/{inc_id}')
+                        observed_incidents[inc_id] = urls
+                    observed_urls.update(urls)
 
                 # Ghi nhận tool call vào trace
                 trace.append({
@@ -146,7 +149,16 @@ def run_agent(question, provider, tools, max_steps=6):
             last_answer = message.get('content') or ''
 
             # Evidence Gate: Kiểm tra xem câu trả lời có chứa link nguồn của incident đã xem không
-            if observed_urls and not any(url in last_answer for url in observed_urls):
+            missing_sources = []
+            if observed_incidents:
+                for inc_id, urls in observed_incidents.items():
+                    if not any(u in last_answer for u in urls):
+                        clean_urls = [u for u in urls if u.startswith('http')]
+                        missing_sources.append(clean_urls[0] if clean_urls else list(urls)[0])
+            elif observed_urls and not any(url in last_answer for url in observed_urls):
+                missing_sources = [u for u in observed_urls if u.startswith('http')]
+
+            if missing_sources:
                 trace.append({
                     'event': 'validation_missing_source',
                     'step': step,
@@ -155,8 +167,7 @@ def run_agent(question, provider, tools, max_steps=6):
                 # Nếu còn lượt gọi model và chưa nhắc quá 1 lần, nhắc model sửa
                 validation_attempts = sum(1 for t in trace if t.get('event') == 'validation_missing_source')
                 if step < max_steps and validation_attempts <= 1:
-                    clean_urls = [u for u in observed_urls if u.startswith('http')]
-                    hint = ', '.join(clean_urls) if clean_urls else ', '.join(observed_urls)
+                    hint = ', '.join(missing_sources)
                     messages.append({
                         'role': 'user',
                         'content': f'Your answer is missing the incident source URL. Please include the incident source URL in your answer: {hint}'
